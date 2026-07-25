@@ -1,0 +1,36 @@
+# Node
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Env — never commit real credentials
+.env
+.env.*
+!.env.example
+!*.env.example
+API_keys.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+runner/.eggs/
+runner/build/
+runner/*.egg-info/
+
+# Runner local state (tokens, checkpoints, downloaded inputs)
+.aureli-runner/
+runner-workdir/
+
+# Playwright
+playwright-report/
+test-results/
+
+# OS
+.DS_Store
+Thumbs.db

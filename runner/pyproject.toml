@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aureli-runner"
+version = "1.0.0"
+description = "Aureli local pipeline runner — execution plane for the Campaign Console"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32",
+    "python-dotenv>=1.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+keychain = ["keyring>=25.0"]
+dev = ["pytest>=8.0", "responses>=0.25"]
+
+[project.scripts]
+aureli-runner = "aureli_runner.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["aureli_runner*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

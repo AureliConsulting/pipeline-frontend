@@ -1,0 +1,19 @@
+{
+  "name": "aureli-campaign-console",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "packages/shared",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build -w packages/shared && npm run build -w apps/web",
+    "typecheck": "npm run typecheck -w packages/shared && npm run typecheck -w apps/web",
+    "test": "npm run test -w packages/shared && npm run test -w apps/web",
+    "test:e2e": "npm run test:e2e -w apps/web",
+    "protocol:generate": "node scripts/generate-protocol.mjs",
+    "protocol:check": "node scripts/generate-protocol.mjs --check"
+  },
+  "devDependencies": {}
+}

@@ -1,0 +1,40 @@
+# Fixture campaign configuration (matches gtm_research CampaignConfig schema).
+# Values containing spintax are quoted so YAML preserves them byte-for-byte.
+campaign_id: "fixture_campaign_v1"
+template_id: "aureli_base_email_v1"
+proof:
+  company: "Motogistics Logistics"
+  result: "over $100k in contracts"
+  timeframe: "within 90 days"
+  mechanism: "cold email"
+approved_offers:
+  - id: "approved_market_validation_offer"
+    canonical_text: "{build|put together} the first campaign and target-account list with no upfront fee"
+    allowed_variations:
+      - "map out the campaign and build the initial target list at no cost"
+    prohibited_promises:
+      - "guaranteed revenue"
+      - "guaranteed meetings"
+approved_contact_bridges:
+  - id: "priority_uncertain"
+    canonical_text: "Not sure if outbound is a priority right now"
+  - id: "existing_process"
+    canonical_text: "You may already have this covered"
+generation:
+  model: "deepseek-v4-flash"
+  temperature: 0.2
+  max_tokens: 3200
+  max_attempts: 2
+  evidence_confidence_threshold: 0.6
+  max_evidence_age_days: 365
+  prohibited_style_terms:
+    - "leverage"
+    - "seamless"
+generation_eligibility:
+  allowed_outreach_decisions: ["Yes", "Review"]
+  require_email_approved: true
+  require_email_eligible: true
+  require_completed_research: true
+  require_approved_evidence_event: true
+send_eligibility:
+  allowed_outreach_decisions: ["Yes"]

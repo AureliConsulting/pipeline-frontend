@@ -1,0 +1,196 @@
+# GENERATED FILE — do not edit. Source: packages/shared/protocol.json (npm run protocol:generate)
+import json
+
+PROTOCOL = json.loads(r"""{
+  "$comment": "Single source of truth for the web <-> runner protocol. Edit this file, then run `npm run protocol:generate` to regenerate packages/shared/src/protocol.ts and runner/aureli_runner/protocol.py. CI/tests fail if generated files drift.",
+  "protocol_version": "1.0.0",
+  "min_compatible_protocol_version": "1.0.0",
+  "run_statuses": [
+    "draft",
+    "awaiting_runner",
+    "queued",
+    "stage_one_running",
+    "stage_one_retrying",
+    "stage_one_failed",
+    "awaiting_stage_one_approval",
+    "stage_two_running",
+    "stage_two_retrying",
+    "stage_two_failed",
+    "awaiting_final_approval",
+    "uploading_to_instantly",
+    "completed",
+    "completed_with_warnings",
+    "cancelled"
+  ],
+  "terminal_statuses": [
+    "completed",
+    "completed_with_warnings",
+    "cancelled"
+  ],
+  "claimable_statuses": [
+    "queued",
+    "awaiting_runner"
+  ],
+  "stages": [
+    "stage_one",
+    "stage_two",
+    "instantly_upload"
+  ],
+  "stage_statuses": [
+    "pending",
+    "running",
+    "retrying",
+    "failed",
+    "completed",
+    "skipped"
+  ],
+  "event_severities": [
+    "debug",
+    "info",
+    "warn",
+    "error"
+  ],
+  "event_types": [
+    "run_claimed",
+    "stage_started",
+    "stage_progress",
+    "stage_retrying",
+    "stage_completed",
+    "stage_failed",
+    "row_failed",
+    "artifact_uploaded",
+    "approval_requested",
+    "approval_decided",
+    "instantly_upload_started",
+    "instantly_upload_completed",
+    "instantly_upload_failed",
+    "runner_resumed",
+    "log"
+  ],
+  "artifact_types": [
+    "source_csv",
+    "vayne_export",
+    "email_discovery_output",
+    "verification_output",
+    "verified_csv",
+    "rejected_csv",
+    "invalid_email_csv",
+    "manual_review_csv",
+    "gtm_scored_csv",
+    "personalized_csv",
+    "instantly_ready_csv",
+    "cost_report",
+    "evidence_report",
+    "pipeline_log",
+    "config_snapshot"
+  ],
+  "artifact_stage_map": {
+    "source_csv": "stage_one",
+    "vayne_export": "stage_one",
+    "email_discovery_output": "stage_one",
+    "verification_output": "stage_one",
+    "verified_csv": "stage_one",
+    "invalid_email_csv": "stage_one",
+    "rejected_csv": "stage_two",
+    "manual_review_csv": "stage_two",
+    "gtm_scored_csv": "stage_two",
+    "personalized_csv": "stage_two",
+    "instantly_ready_csv": "stage_two",
+    "cost_report": "stage_two",
+    "evidence_report": "stage_two",
+    "pipeline_log": "stage_two",
+    "config_snapshot": "stage_one"
+  },
+  "approval_kinds": [
+    "stage_one",
+    "final",
+    "failure_decision"
+  ],
+  "failure_decisions": [
+    "retry_failed",
+    "skip_failed",
+    "cancel"
+  ],
+  "instantly_upload_statuses": [
+    "pending_approval",
+    "approved",
+    "uploading",
+    "completed",
+    "failed",
+    "cancelled"
+  ],
+  "run_event_fields": {
+    "$comment": "Structured event emitted by the runner. seq is a per-run monotonic integer assigned by the runner; (run_id, seq) is unique server-side which makes batch posts idempotent.",
+    "required": [
+      "seq",
+      "stage",
+      "ts",
+      "severity",
+      "event_type",
+      "message"
+    ],
+    "optional": [
+      "current_item",
+      "total_items",
+      "exa_query_count",
+      "retry_count",
+      "cost_usd",
+      "metadata"
+    ]
+  },
+  "retry_policy": {
+    "max_automatic_attempts": 3,
+    "base_delay_seconds": 5,
+    "max_delay_seconds": 120,
+    "jitter_fraction": 0.25
+  },
+  "limits": {
+    "max_leads_per_run": 10000,
+    "max_csv_upload_bytes": 52428800,
+    "max_yaml_bytes": 262144,
+    "pairing_code_ttl_seconds": 600,
+    "heartbeat_interval_seconds": 30,
+    "runner_offline_after_seconds": 120,
+    "event_batch_max": 200,
+    "live_events_retained_per_run": 500
+  },
+  "credential_keys": {
+    "$comment": "Credentials the runner detects locally. Only status strings ever leave the machine.",
+    "stage_one": [
+      "VAYNE_API_KEY",
+      "ICYPEAS_API_KEY",
+      "ICYPEAS_USER_ID",
+      "MILLIONVERIFIER_API_KEY"
+    ],
+    "stage_two": [
+      "EXA_API_KEY",
+      "DEEPSEEK_API_KEY"
+    ],
+    "instantly_upload": [
+      "INSTANTLY_API_KEY"
+    ]
+  },
+  "credential_statuses": [
+    "configured",
+    "missing",
+    "invalid",
+    "unchecked"
+  ]
+}""")
+
+PROTOCOL_VERSION = PROTOCOL["protocol_version"]
+RUN_STATUSES = PROTOCOL["run_statuses"]
+TERMINAL_STATUSES = PROTOCOL["terminal_statuses"]
+STAGES = PROTOCOL["stages"]
+STAGE_STATUSES = PROTOCOL["stage_statuses"]
+EVENT_SEVERITIES = PROTOCOL["event_severities"]
+EVENT_TYPES = PROTOCOL["event_types"]
+ARTIFACT_TYPES = PROTOCOL["artifact_types"]
+ARTIFACT_STAGE_MAP = PROTOCOL["artifact_stage_map"]
+APPROVAL_KINDS = PROTOCOL["approval_kinds"]
+FAILURE_DECISIONS = PROTOCOL["failure_decisions"]
+INSTANTLY_UPLOAD_STATUSES = PROTOCOL["instantly_upload_statuses"]
+RETRY_POLICY = PROTOCOL["retry_policy"]
+LIMITS = PROTOCOL["limits"]
+CREDENTIAL_KEYS = PROTOCOL["credential_keys"]
+CREDENTIAL_STATUSES = PROTOCOL["credential_statuses"]

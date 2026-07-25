@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* Aureli design tokens — centralized, replace here to rebrand.        */
+/* ------------------------------------------------------------------ */
+:root {
+  --color-evergreen: #173c32;
+  --color-evergreen-deep: #102a24;
+  --color-sage: #a7b5a2;
+  --color-sage-light: #dce4d8;
+  --color-charcoal: #202521;
+  --color-warm-bg: #f5f4ef;
+  --color-white: #ffffff;
+
+  /* Accessible semantic colors (muted, AA on warm background) */
+  --color-error: #a03123;
+  --color-error-bg: #f7e8e5;
+  --color-warning: #8a5b00;
+  --color-warning-bg: #f8efdc;
+  --color-success: #1e6b3c;
+  --color-success-bg: #e4f0e7;
+  --color-info: #1f4f66;
+  --color-info-bg: #e3edf2;
+
+  --font-heading: "General Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Consolas", monospace;
+}
+
+@theme inline {
+  --color-evergreen: var(--color-evergreen);
+  --color-evergreen-deep: var(--color-evergreen-deep);
+  --color-sage: var(--color-sage);
+  --color-sage-light: var(--color-sage-light);
+  --color-charcoal: var(--color-charcoal);
+  --color-warm: var(--color-warm-bg);
+  --color-danger: var(--color-error);
+  --color-danger-bg: var(--color-error-bg);
+  --color-warn: var(--color-warning);
+  --color-warn-bg: var(--color-warning-bg);
+  --color-ok: var(--color-success);
+  --color-ok-bg: var(--color-success-bg);
+  --color-note: var(--color-info);
+  --color-note-bg: var(--color-info-bg);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-heading);
+}
+
+html {
+  font-family: var(--font-body);
+  background: var(--color-warm-bg);
+  color: var(--color-charcoal);
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.01em;
+}
+
+/* Operational console defaults: dense, quiet, readable */
+body {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+::selection {
+  background: var(--color-sage-light);
+}
+
+/* Focus visibility for accessibility */
+:focus-visible {
+  outline: 2px solid var(--color-evergreen);
+  outline-offset: 1px;
+}
+
+/* Log viewer */
+.log-line {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
