@@ -18,8 +18,11 @@ port = 54323
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://localhost:3000"]
+# Production URL (Vercel). This app has no OAuth/magic-link redirect flow, so
+# site_url mismatch doesn't block login — kept accurate anyway for
+# correctness and in case a redirect-based flow is added later.
+site_url = "https://pipeline-frontend-web.vercel.app"
+additional_redirect_urls = ["https://pipeline-frontend-web.vercel.app", "http://localhost:3000"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 # Internal tool: no self-signup. Users are created by an operator
