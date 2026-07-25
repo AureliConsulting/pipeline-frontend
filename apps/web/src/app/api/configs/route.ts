@@ -50,6 +50,7 @@ export const POST = handled(async (request: Request) => {
       name: input.name,
       yaml_text: input.yaml_text,
       normalized_json: validation.normalized,
+      schema_source: "gtm_research.campaign_runtime.CampaignConfig",
     })
     .select("*")
     .single();

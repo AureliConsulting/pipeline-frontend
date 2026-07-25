@@ -16,8 +16,6 @@ import traceback
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from .adapters.base import AdapterContext, PermanentAdapterError, PipelineAdapter, StageResult
 from .adapters.gtm_adapter import GtmScoringPersonalizationAdapter
 from .adapters.instantly_adapter import InstantlyUploadAdapter
@@ -292,16 +290,7 @@ class RunnerDaemon:
         yaml_text = config.get("yaml_text")
         if yaml_text:
             # Preserve the original YAML byte-for-byte…
-            (workspace.input_dir / "campaign_config.yaml").write_text(yaml_text, encoding="utf-8")
-            # …and derive the JSON the pipeline actually consumes.
-            normalized = config.get("normalized_json")
-            if not normalized:
-                normalized = yaml.safe_load(yaml_text)
-            import json as _json
-
-            (workspace.input_dir / "campaign_config.json").write_text(
-                _json.dumps(normalized, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+            (workspace.input_dir / "campaign_config.yaml").write_bytes(yaml_text.encode("utf-8"))
 
     def _upload_artifacts(self, ctx, emitter, state: RunState, workspace: RunWorkspace, result: StageResult) -> None:
         artifacts = list(result.artifacts)

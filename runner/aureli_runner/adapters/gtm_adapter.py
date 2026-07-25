@@ -5,12 +5,18 @@ project). Preserves all of its validation, evidence, scoring, resume, caching
 and personalization behavior by shelling out to its real CLI:
 
   python -m gtm_research run --input-csv <verified.csv> --output-csv <out> [--resume|--only-failed]
-  python -m gtm_research personalize --input <scored_final> --campaign-config <json> ...
+  python -m gtm_research personalize --input <scored_final> --campaign-config <yaml> ...
 
-The campaign configuration is authored as YAML in the web app, stored
-verbatim, and converted 1:1 to the JSON document the pipeline actually loads
-(gtm_research.personalization.campaign_config.CampaignConfig — strict
-Pydantic). String values (including spintax) are passed through unmodified.
+The campaign configuration is authored as YAML in the web app and passed to
+the pipeline VERBATIM, unmodified, with its original .yaml extension intact.
+The pipeline's own `personalize` dispatch (gtm_research.personalization.
+generator.generate_personalization) routes by file extension: .yaml/.yml
+goes to the config-driven engine (arbitrary email sequences, declared
+`{{variables}}`, spintax kept structurally separate from personalization
+placeholders); anything else falls back to the legacy fixed-template engine.
+Passing the human-authored source directly — never a re-derived JSON copy —
+is what makes that dispatch correct and keeps spintax/copy content byte-for-
+byte unmodified end to end.
 """
 from __future__ import annotations
 
@@ -66,9 +72,20 @@ class GtmScoringPersonalizationAdapter(PipelineAdapter):
             return finals[0]
         return ctx.workspace.output_dir / "verified.csv"
 
-    def _write_campaign_json(self, ctx: AdapterContext) -> Path:
-        path = ctx.workspace.input_dir / "campaign_config.json"
-        path.write_text(json.dumps(ctx.config_json, ensure_ascii=False, indent=2), encoding="utf-8")
+    @staticmethod
+    def _campaign_config_path(ctx: AdapterContext) -> Path:
+        # jobs.py::_materialize_inputs already writes the verbatim
+        # config_yaml here before any adapter runs. Referencing it directly
+        # (rather than re-deriving a JSON copy from ctx.config_json) keeps
+        # this the single, human-authored source of truth passed to the
+        # pipeline, and its .yaml extension is what makes the pipeline's own
+        # dispatch route to the config-driven engine instead of the legacy
+        # fixed-template one.
+        path = ctx.workspace.input_dir / "campaign_config.yaml"
+        if not path.is_file():
+            raise PermanentAdapterError(
+                f"Campaign configuration was not materialized into the run workspace: {path}"
+            )
         return path
 
     def _stdout_json_collector(self):
@@ -179,7 +196,7 @@ class GtmScoringPersonalizationAdapter(PipelineAdapter):
             raise AdapterError("Scored final CSV was not produced")
 
         # ---- personalization (gtm_research personalize) ----
-        campaign_json = self._write_campaign_json(ctx)
+        campaign_config = self._campaign_config_path(ctx)
         personalized = out_dir / f"{stem}_personalized_final.csv"
         send_ready = out_dir / f"{stem}_send_ready.csv"
         manual_review = out_dir / f"{stem}_manual_review.csv"
@@ -187,7 +204,7 @@ class GtmScoringPersonalizationAdapter(PipelineAdapter):
             python_executable(), "-m", "gtm_research", "personalize",
             "--input-csv", str(scored_final),
             "--output-csv", str(personalized),
-            "--campaign-config", str(campaign_json),
+            "--campaign-config", str(campaign_config),
             "--send-ready-output", str(send_ready),
             "--manual-review-output", str(manual_review),
             "--workers", str(self.workers),
@@ -241,7 +258,7 @@ class GtmScoringPersonalizationAdapter(PipelineAdapter):
             for path in sorted(out_dir.glob(pattern)):
                 rows = _csv_rows(path) if path.suffix == ".csv" else None
                 artifacts.append(ArtifactOut(path, artifact_type, rows))
-        config_snapshot = ctx.workspace.input_dir / "campaign_config.json"
+        config_snapshot = ctx.workspace.input_dir / "campaign_config.yaml"
         if config_snapshot.is_file():
             artifacts.append(ArtifactOut(config_snapshot, "config_snapshot", None))
         return artifacts

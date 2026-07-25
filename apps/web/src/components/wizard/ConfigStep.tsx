@@ -8,6 +8,8 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Alert } from "@/components/ui/misc";
 import { Badge } from "@/components/ui/badge";
+import { EmailListEditor } from "./EmailListEditor";
+import { VariableListEditor } from "./VariableListEditor";
 
 export interface ChosenConfig {
   id: string;
@@ -34,7 +36,7 @@ interface ValidationResponse {
  * - Select a previously saved configuration,
  * - upload a YAML file,
  * - start from the canonical Aureli configuration,
- * - guided edits for campaign copy (proof / offers / bridges) that regenerate
+ * - guided edits for email sequences and typed variables that regenerate
  *   YAML with values double-quoted so Instantly spintax is never damaged,
  * - an advanced raw-YAML editor (stored verbatim),
  * - server-side syntax + schema validation and a read-only normalized preview.
@@ -102,8 +104,8 @@ export function ConfigStep({
     }
   }
 
-  /** Guided copy edits: replace fields on the parsed config, re-emit YAML with
-   *  double-quoted strings (content preserved byte-for-byte inside quotes). */
+  /** Guided edits replace fields on the parsed config, then re-emit the whole
+   *  document with double-quoted strings so spintax remains legible and safe. */
   function applyGuidedEdit(mutate: (config: CampaignConfig) => void) {
     const current = validation?.normalized;
     if (!current) {
@@ -212,70 +214,31 @@ export function ConfigStep({
             {normalized ? (
               <details className="rounded border border-sage-light bg-warm/50 p-3">
                 <summary className="cursor-pointer text-xs font-medium uppercase tracking-wide text-charcoal/70">
-                  Guided copy edits (spintax-safe)
+                  Guided email and variable edits (spintax-safe)
                 </summary>
-                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                  {(["company", "result", "timeframe", "mechanism"] as const).map((key) => (
-                    <div key={key}>
-                      <Label>Proof · {key}</Label>
-                      <Input
-                        defaultValue={normalized.proof[key] ?? ""}
-                        onBlur={(e) =>
-                          applyGuidedEdit((config) => {
-                            config.proof[key] = e.target.value;
-                          })
-                        }
-                      />
-                    </div>
-                  ))}
-                  {normalized.approved_offers.map((offer, index) => (
-                    <div key={offer.id} className="md:col-span-2">
-                      <Label>Offer “{offer.id}” · canonical text</Label>
-                      <Textarea
-                        rows={2}
-                        defaultValue={offer.canonical_text}
-                        onBlur={(e) =>
-                          applyGuidedEdit((config) => {
-                            const target = config.approved_offers[index];
-                            if (target) target.canonical_text = e.target.value;
-                          })
-                        }
-                      />
-                    </div>
-                  ))}
-                  {normalized.approved_contact_bridges.map((bridge, index) => (
-                    <div key={bridge.id}>
-                      <Label>Bridge “{bridge.id}”</Label>
-                      <Input
-                        defaultValue={bridge.canonical_text}
-                        onBlur={(e) =>
-                          applyGuidedEdit((config) => {
-                            const target = config.approved_contact_bridges[index];
-                            if (target) target.canonical_text = e.target.value;
-                          })
-                        }
-                      />
-                    </div>
-                  ))}
-                  <div className="md:col-span-2">
-                    <Label>Prohibited style terms (one per line)</Label>
-                    <Textarea
-                      rows={3}
-                      defaultValue={normalized.generation.prohibited_style_terms.join("\n")}
-                      onBlur={(e) =>
-                        applyGuidedEdit((config) => {
-                          config.generation.prohibited_style_terms = e.target.value
-                            .split("\n")
-                            .map((line) => line.trim())
-                            .filter(Boolean);
-                        })
-                      }
-                    />
-                  </div>
+                <div className="mt-3 space-y-5">
+                  <EmailListEditor
+                    emails={normalized.emails}
+                    onChange={(mutate) =>
+                      applyGuidedEdit((config) => {
+                        mutate(config.emails);
+                        config.emails.forEach((email, index) => {
+                          email.sequence_position = index + 1;
+                        });
+                      })
+                    }
+                  />
+                  <VariableListEditor
+                    variables={normalized.variables}
+                    onChange={(mutate) =>
+                      applyGuidedEdit((config) => {
+                        mutate(config.variables);
+                      })
+                    }
+                  />
                 </div>
                 <p className="mt-2 text-[11px] text-charcoal/50">
-                  Guided edits rewrite the YAML with all strings double-quoted so spintax braces,
-                  quotes, separators, and whitespace inside values are preserved exactly.
+                  Settings, generation, and eligibility stay in Raw YAML. Guided edits rewrite the whole file with double-quoted strings.
                 </p>
               </details>
             ) : null}

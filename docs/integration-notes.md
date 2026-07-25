@@ -35,9 +35,11 @@ during inspection and how v1 handles it.
   (used as the cost report) and keeps per-company checkpoints + evidence
   cache under `data/runs/<stem>-<hash>/` — that is its native resume, driven
   by `--resume` / `--only-failed`.
-- `personalize` consumes the scored final CSV plus a **JSON** campaign config
-  and writes the personalized, send-ready, and manual-review CSVs, with
-  `--resume` caching.
+- `personalize` consumes the scored final CSV plus the campaign configuration.
+  The runner passes the user-authored `.yaml` file through verbatim, so the
+  pipeline dispatches to its config-driven engine for arbitrary email
+  sequences and declared variables; it writes the personalized, send-ready,
+  and manual-review CSVs, with `--resume` caching.
 - Eligibility gate: rows need a company plus a verified email
   (MillionVerifier `mv_result/mv_quality`, Icypeas status, or legacy
   `Status` ∈ {95%, 99%}). The adapter surfaces the pipeline's own
@@ -45,19 +47,18 @@ during inspection and how v1 handles it.
 
 ## Deliberate incompatibility handling
 
-1. **The spec says YAML; the pipeline consumes JSON.**
-   `gtm_research` deliberately uses JSON campaign configs (strict Pydantic,
-   `extra="forbid"`). Resolution: users author YAML (readable, spintax
-   quoted); the web app validates against a zod mirror of the Pydantic model;
-   the stored YAML is kept verbatim and the runner converts it 1:1 to JSON
-   (`yaml.safe_load` → `json.dump`, values untouched) before invoking
-   `personalize`. The YAML schema was NOT silently altered — it is exactly the
-   JSON schema, expressed in YAML.
-2. **Follow-up copy is not in the config.** Emails 1–3 are fixed template
-   files (`templates/aureli_*_v*.txt`) rendered by the pipeline; the config
-   carries proof/offers/bridges/style constraints. Per spec ("when represented
-   by the YAML"), the UI edits what the config actually represents and does
-   not fabricate a follow-up editor.
+1. **Campaign-schema and dispatch migration is resolved.** Users author YAML,
+   and the web app validates it against a Zod mirror of
+   `gtm_research.personalization.campaign_runtime.CampaignConfig` (strict
+   Pydantic, `extra="forbid"`). The runner materializes that YAML verbatim as
+   `campaign_config.yaml` and passes it directly to `personalize`; the `.yaml`
+   extension selects the config-driven pipeline engine rather than the legacy
+   fixed-template path.
+2. **Follow-up copy is represented by the config.** The current schema carries
+   an ordered `emails` sequence and declared variables, so the guided editor
+   supports multiple email steps, typed variables, and variable-difference
+   constraints. Settings, generation, and eligibility remain raw-YAML-only
+   operational controls.
 3. **`pipeline.py` cannot ingest arbitrary CSVs.** Its `--skip-vayne` path
    assumes the Vayne "simple" column order. Resolution in the CSV campaign
    path: (a) raw Vayne exports (no verification columns) are staged as

@@ -19,7 +19,7 @@ export default async function ConfigurationsPage() {
       <h1 className="text-lg font-semibold text-evergreen-deep">Saved configurations</h1>
       <Alert tone="info">
         Configurations are YAML documents validated against the real pipeline schema
-        (gtm_research CampaignConfig). They are stored verbatim — spintax and copy strings are
+        (gtm_research.campaign_runtime.CampaignConfig). They are stored verbatim — spintax and copy strings are
         passed to the pipeline exactly as written. Create or edit them inside a campaign
         (Campaign → Configure) so each version stays attached to its campaign.
       </Alert>

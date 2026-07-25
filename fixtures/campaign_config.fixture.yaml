@@ -1,40 +1,83 @@
-# Fixture campaign configuration (matches gtm_research CampaignConfig schema).
-# Values containing spintax are quoted so YAML preserves them byte-for-byte.
+# Fixture campaign configuration (matches gtm_research
+# campaign_runtime.CampaignConfig schema). Values containing spintax are
+# quoted/block-scalar so YAML preserves them byte-for-byte.
 campaign_id: "fixture_campaign_v1"
-template_id: "aureli_base_email_v1"
-proof:
-  company: "Motogistics Logistics"
-  result: "over $100k in contracts"
-  timeframe: "within 90 days"
-  mechanism: "cold email"
-approved_offers:
-  - id: "approved_market_validation_offer"
-    canonical_text: "{build|put together} the first campaign and target-account list with no upfront fee"
-    allowed_variations:
-      - "map out the campaign and build the initial target list at no cost"
-    prohibited_promises:
-      - "guaranteed revenue"
-      - "guaranteed meetings"
-approved_contact_bridges:
-  - id: "priority_uncertain"
-    canonical_text: "Not sure if outbound is a priority right now"
-  - id: "existing_process"
-    canonical_text: "You may already have this covered"
+version: 1
+name: "Fixture Campaign"
+description: "Used by shared-package tests."
+
+settings:
+  preserve_spintax: true
+  max_exa_queries: 4
+  minimum_personalization_confidence: "moderate"
+  max_leads_per_run: 500
+  fail_on_undefined_variables: true
+  generate_rendered_previews: true
+
 generation:
   model: "deepseek-v4-flash"
   temperature: 0.2
-  max_tokens: 3200
+  max_tokens: 1200
   max_attempts: 2
   evidence_confidence_threshold: 0.6
   max_evidence_age_days: 365
   prohibited_style_terms:
     - "leverage"
     - "seamless"
-generation_eligibility:
+
+eligibility:
   allowed_outreach_decisions: ["Yes", "Review"]
+  send_eligible_outreach_decisions: ["Yes"]
   require_email_approved: true
   require_email_eligible: true
   require_completed_research: true
-  require_approved_evidence_event: true
-send_eligibility:
-  allowed_outreach_decisions: ["Yes"]
+
+emails:
+  - id: "email_1"
+    sequence_position: 1
+    delay_days: 0
+    subject: ""
+    body: |
+      Hey {{firstname}},
+
+      {build|put together} the first campaign for {{companyname_casualized}} around {{gtm_trigger_short}}.
+
+  - id: "email_2"
+    sequence_position: 2
+    delay_days: 3
+    subject: ""
+    body: |
+      Hey {{firstname}},
+
+      {Following up|Circling back} on {{secondary_signal_short}}.
+
+variables:
+  firstname:
+    type: "source"
+    source_column: "first_name"
+    required: true
+
+  companyname_casualized:
+    type: "source"
+    source_column: "companyname_casualized"
+    fallback: "normalized_company_name"
+
+  gtm_trigger_short:
+    type: "generated"
+    description: "A concise evidence-backed recent company event."
+    max_words: 18
+    evidence_required: true
+    output_class: "verified_fact"
+
+  secondary_signal_short:
+    type: "generated"
+    description: "A second relevant company signal, distinct from gtm_trigger_short."
+    max_words: 18
+    evidence_required: true
+    output_class: "verified_fact"
+    must_differ_from: ["gtm_trigger_short"]
+
+  sender_company:
+    type: "static"
+    value: "Aureli"
+    required: true
