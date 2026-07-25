@@ -15,6 +15,7 @@ import { Alert } from "@/components/ui/misc";
 import { Badge } from "@/components/ui/badge";
 import { CsvUploadStep, type UploadResult } from "./CsvUploadStep";
 import { ConfigStep, type ChosenConfig } from "./ConfigStep";
+import { FallbackRulesStep, type ChosenFallbackRules } from "./FallbackRulesStep";
 
 export interface RunnerSummary {
   id: string;
@@ -46,6 +47,8 @@ export function CampaignWizard({ runners }: { runners: RunnerSummary[] }) {
   const [snUrl, setSnUrl] = useState("");
   const [snLimit, setSnLimit] = useState(500);
   const [config, setConfig] = useState<ChosenConfig | null>(null);
+  const [fallbackRules, setFallbackRules] = useState<ChosenFallbackRules | null>(null);
+  const [allowPartial, setAllowPartial] = useState(false);
   const [mock, setMock] = useState(false);
 
   const details = useForm<DetailsForm>({
@@ -111,7 +114,14 @@ export function CampaignWizard({ runners }: { runners: RunnerSummary[] }) {
             };
       const body = await fetchJson<{ run_id: string; status: string }>("/api/runs", {
         method: "POST",
-        json: { campaign_id: campaign.id, config_id: config.id, mock, source },
+        json: {
+          campaign_id: campaign.id,
+          config_id: config.id,
+          mock,
+          source,
+          allow_partial: allowPartial,
+          fallback_rule_set_id: fallbackRules?.id ?? null,
+        },
       });
       router.push(`/runs/${body.run_id}/progress`);
     } catch (e) {
@@ -330,7 +340,9 @@ export function CampaignWizard({ runners }: { runners: RunnerSummary[] }) {
                 <dd className="text-right text-xs">
                   1. Sourcing & verification → approval
                   <br />
-                  2. GTM scoring & personalization → approval → optional Instantly upload
+                  2. GTM scoring & personalization → runs automatically into stage 3
+                  <br />
+                  3. Manual review fallback resolution → final approval → optional Instantly upload
                 </dd>
               </div>
             </dl>
@@ -364,6 +376,24 @@ export function CampaignWizard({ runners }: { runners: RunnerSummary[] }) {
               ahead of execution. Stage summaries report actual counts and any cost data the
               pipeline emits.
             </p>
+
+            <FallbackRulesStep onChosen={setFallbackRules} chosen={fallbackRules} />
+
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={allowPartial}
+                onChange={(e) => setAllowPartial(e.target.checked)}
+                data-testid="allow-partial-toggle"
+              />
+              <span>
+                Allow partial upload — if some leads can&apos;t be safely delivered, still let the
+                run finish instead of stopping. <strong>Blocked leads are always excluded from
+                Instantly exports either way</strong> — this only changes whether that counts as a
+                hard stop or a warning.
+              </span>
+            </label>
 
             <div className="flex justify-between">
               <Button variant="outline" onClick={() => setStep(2)}>Back</Button>

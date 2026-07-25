@@ -51,6 +51,16 @@ export const GET = handled(async (request: Request, { params }: Params) => {
     .eq("id", String(run.campaign_id))
     .maybeSingle();
 
+  let fallbackRules: unknown = null;
+  if (run.fallback_rule_set_id) {
+    const { data: ruleSet } = await admin
+      .from("fallback_rule_sets")
+      .select("json, user_id")
+      .eq("id", String(run.fallback_rule_set_id))
+      .maybeSingle();
+    if (ruleSet && ruleSet.user_id === runner.user_id) fallbackRules = ruleSet.json;
+  }
+
   return json({
     run_id: id,
     campaign_title: campaign?.title ?? "",
@@ -70,5 +80,7 @@ export const GET = handled(async (request: Request, { params }: Params) => {
     },
     directive: run.directive ?? {},
     mock: run.mock === true,
+    allow_partial: run.allow_partial === true,
+    fallback_rules: fallbackRules,
   });
 });

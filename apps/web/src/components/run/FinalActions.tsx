@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/fetchJson";
+import { canConfirmInstantlyUpload } from "@/lib/exportGate";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
@@ -18,11 +19,17 @@ export function FinalActions({
   runId,
   campaignTitle,
   instantlyReadyCount,
+  blockedRowsCount = 0,
   uploadStatus,
 }: {
   runId: string;
   campaignTitle: string;
   instantlyReadyCount: number | null;
+  /** Rows the fallback resolver quarantined — always excluded from this
+   * upload. When > 0, the dialog requires an explicit acknowledgement
+   * checkbox before the confirm button enables, regardless of whatever
+   * allow_partial was set to at run creation time. */
+  blockedRowsCount?: number;
   uploadStatus: string | null;
 }) {
   const router = useRouter();
@@ -30,6 +37,7 @@ export function FinalActions({
   const [confirmTitle, setConfirmTitle] = useState("");
   const [confirmCount, setConfirmCount] = useState("");
   const [listId, setListId] = useState("");
+  const [partialAcknowledged, setPartialAcknowledged] = useState(false);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -104,9 +112,27 @@ export function FinalActions({
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} title="Confirm Instantly upload">
         <div className="space-y-3">
           <Alert tone="warning">
-            This will upload {instantlyReadyCount ?? "?"} leads to Instantly. Type the campaign
-            title and lead count exactly to confirm.
+            This will upload {instantlyReadyCount ?? "?"} validated leads to Instantly. Type the
+            campaign title and lead count exactly to confirm.
           </Alert>
+          {blockedRowsCount > 0 ? (
+            <Alert tone="danger" data-testid="export-blocked-warning">
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={partialAcknowledged}
+                  onChange={(e) => setPartialAcknowledged(e.target.checked)}
+                  data-testid="export-partial-confirm"
+                />
+                <span>
+                  {blockedRowsCount} lead(s) were blocked by the fallback resolver and will{" "}
+                  <strong>not</strong> be included in this upload. I understand and want to
+                  proceed with only the validated leads.
+                </span>
+              </label>
+            </Alert>
+          ) : null}
           {error ? <Alert tone="danger">{error}</Alert> : null}
           <div>
             <Label htmlFor="confirm-title">Campaign title ({campaignTitle})</Label>
@@ -132,9 +158,15 @@ export function FinalActions({
               onClick={approveInstantly}
               disabled={
                 busy !== null ||
-                confirmTitle.trim() !== campaignTitle.trim() ||
-                Number(confirmCount) !== (instantlyReadyCount ?? -1) ||
-                listId.trim().length === 0
+                !canConfirmInstantlyUpload({
+                  confirmTitle,
+                  campaignTitle,
+                  confirmCount,
+                  readyCount: instantlyReadyCount,
+                  listId,
+                  blockedRowsCount,
+                  partialAcknowledged,
+                })
               }
               data-testid="confirm-upload"
             >

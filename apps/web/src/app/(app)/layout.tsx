@@ -6,6 +6,7 @@ import {
   Cpu,
   KeyRound,
   FileCode2,
+  ShieldAlert,
   LogOut,
 } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -19,6 +20,7 @@ const NAV = [
   { href: "/settings/runners", label: "Runners", icon: Cpu },
   { href: "/settings/credentials", label: "API Keys", icon: KeyRound },
   { href: "/settings/configurations", label: "Configurations", icon: FileCode2 },
+  { href: "/settings/fallback-rules", label: "Fallback Rules", icon: ShieldAlert },
 ] as const;
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

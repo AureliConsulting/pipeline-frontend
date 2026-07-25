@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { failureDecisionSchema } from "@aureli/shared";
+import { failureDecisionSchema, type Stage } from "@aureli/shared";
 import { ApiError, handled, json, parseBody, requireUser } from "@/lib/api";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getOwnedRun, runStatusOf, transitionRun } from "@/lib/runsService";
@@ -7,6 +7,12 @@ import { getOwnedRun, runStatusOf, transitionRun } from "@/lib/runsService";
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
+
+const FAILED_STAGE: Record<string, Stage> = {
+  stage_one_failed: "stage_one",
+  stage_two_failed: "stage_two",
+  fallback_resolver_failed: "fallback_resolver",
+};
 
 /**
  * POST /api/runs/[id]/failure-decision
@@ -23,10 +29,10 @@ export const POST = handled(async (request: Request, { params }: Params) => {
   const admin = createSupabaseAdminClient();
   const run = await getOwnedRun(admin, user.id, id);
   const status = runStatusOf(run);
-  if (status !== "stage_one_failed" && status !== "stage_two_failed") {
+  const failedStage = FAILED_STAGE[status];
+  if (!failedStage) {
     throw new ApiError(409, `Run is not paused on a failure (status: ${status})`);
   }
-  const failedStage = status === "stage_one_failed" ? "stage_one" : "stage_two";
 
   if (action === "cancel") {
     await transitionRun(admin, id, status, "cancelled", {

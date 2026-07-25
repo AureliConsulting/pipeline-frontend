@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
@@ -29,13 +29,34 @@ describe("protocol sync", () => {
     expect(JSON.parse(match![1]!)).toEqual(source);
   });
 
-  it("SQL enum matches protocol statuses", () => {
-    const sql = readFileSync(
-      join(__dirname, "../../../supabase/migrations/0001_types.sql"),
-      "utf8",
-    );
-    const enumBlock = /create type public\.run_status as enum \(([\s\S]*?)\);/.exec(sql)![1]!;
-    const statuses = [...enumBlock.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+  it("SQL enum matches protocol statuses (base CREATE TYPE + later ALTER TYPE ADD VALUE)", () => {
+    const migrationsDir = join(__dirname, "../../../supabase/migrations");
+    const baseSql = readFileSync(join(migrationsDir, "0001_types.sql"), "utf8");
+    const enumBlock = /create type public\.run_status as enum \(([\s\S]*?)\);/.exec(baseSql)![1]!;
+    const statuses = [...enumBlock.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]!);
+
+    // Later migrations may extend the enum additively via
+    // `alter type public.run_status add value 'x' after 'y';` — fold those
+    // into the same ordered list rather than requiring every status to live
+    // in the original 0001 file forever.
+    const laterFiles = readdirSync(migrationsDir)
+      .filter((f) => f !== "0001_types.sql" && f.endsWith(".sql"))
+      .sort();
+    const addValueRe =
+      /alter type public\.run_status add value '([a-z_]+)'(?:\s+after\s+'([a-z_]+)')?;/g;
+    for (const file of laterFiles) {
+      const sql = readFileSync(join(migrationsDir, file), "utf8");
+      for (const match of sql.matchAll(addValueRe)) {
+        const [, value, after] = match;
+        if (!value || statuses.includes(value)) continue;
+        if (after && statuses.includes(after)) {
+          statuses.splice(statuses.indexOf(after) + 1, 0, value);
+        } else {
+          statuses.push(value);
+        }
+      }
+    }
+
     expect(statuses).toEqual([...PROTOCOL.run_statuses]);
   });
 });

@@ -30,7 +30,7 @@ describe("run state machine", () => {
     }
   });
 
-  it("walks the happy path end to end", () => {
+  it("walks the happy path end to end (three mandatory stages)", () => {
     const path: RunStatus[] = [
       "draft",
       "queued",
@@ -38,6 +38,10 @@ describe("run state machine", () => {
       "awaiting_stage_one_approval",
       "queued",
       "stage_two_running",
+      // stage_two's success edge auto-advances to queued — no human gate —
+      // because the fallback resolver always runs next.
+      "queued",
+      "fallback_resolver_running",
       "awaiting_final_approval",
       "uploading_to_instantly",
       "completed",
@@ -47,12 +51,20 @@ describe("run state machine", () => {
     }
   });
 
+  it("stage_two never jumps straight to awaiting_final_approval", () => {
+    expect(canTransition("stage_two_running", "awaiting_final_approval")).toBe(false);
+    expect(canTransition("stage_two_retrying", "awaiting_final_approval")).toBe(false);
+  });
+
   it("supports retry + failure decision loops", () => {
     expect(canTransition("stage_one_running", "stage_one_retrying")).toBe(true);
     expect(canTransition("stage_one_retrying", "stage_one_running")).toBe(true);
     expect(canTransition("stage_one_retrying", "stage_one_failed")).toBe(true);
     expect(canTransition("stage_one_failed", "queued")).toBe(true);
     expect(canTransition("stage_two_failed", "queued")).toBe(true);
+    expect(canTransition("fallback_resolver_running", "fallback_resolver_retrying")).toBe(true);
+    expect(canTransition("fallback_resolver_retrying", "fallback_resolver_failed")).toBe(true);
+    expect(canTransition("fallback_resolver_failed", "queued")).toBe(true);
   });
 
   it("rejects illegal jumps (approval can never be skipped)", () => {

@@ -49,6 +49,7 @@ stateDiagram-v2
   awaiting_runner --> stage_one_running: claim
   queued --> stage_one_running: claim (next_stage=1)
   queued --> stage_two_running: claim (next_stage=2)
+  queued --> fallback_resolver_running: claim (next_stage=3)
   stage_one_running --> stage_one_retrying: transient error
   stage_one_retrying --> stage_one_running: retry
   stage_one_running --> stage_one_failed: retries exhausted / permanent
@@ -61,9 +62,16 @@ stateDiagram-v2
   stage_two_retrying --> stage_two_running
   stage_two_running --> stage_two_failed
   stage_two_retrying --> stage_two_failed
-  stage_two_running --> awaiting_final_approval: pipeline 2 done
-  stage_two_retrying --> awaiting_final_approval
+  stage_two_running --> queued: pipeline 2 done (auto-continue, next_stage=3)
+  stage_two_retrying --> queued
   stage_two_failed --> queued
+  fallback_resolver_running --> fallback_resolver_retrying: transient error
+  fallback_resolver_retrying --> fallback_resolver_running: retry
+  fallback_resolver_running --> fallback_resolver_failed: retries exhausted / permanent
+  fallback_resolver_retrying --> fallback_resolver_failed
+  fallback_resolver_running --> awaiting_final_approval: resolver done (exit 0 or 2 — quarantine is not a failure)
+  fallback_resolver_retrying --> awaiting_final_approval
+  fallback_resolver_failed --> queued: retry / skip failed rows
   awaiting_final_approval --> completed: complete (no upload)
   awaiting_final_approval --> completed_with_warnings
   awaiting_final_approval --> uploading_to_instantly: typed confirmation
@@ -75,8 +83,10 @@ stateDiagram-v2
   stage_one_running --> cancelled
   awaiting_stage_one_approval --> cancelled
   stage_two_running --> cancelled
+  fallback_resolver_running --> cancelled
   stage_one_failed --> cancelled
   stage_two_failed --> cancelled
+  fallback_resolver_failed --> cancelled
   awaiting_final_approval --> cancelled
   completed --> [*]
   completed_with_warnings --> [*]

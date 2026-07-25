@@ -8,6 +8,12 @@ export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
+const STAGE_STATUS_PREFIX: Record<string, "stage_one" | "stage_two" | "fallback_resolver"> = {
+  stage_one: "stage_one",
+  stage_two: "stage_two",
+  fallback_resolver: "fallback_resolver",
+};
+
 /**
  * POST /api/runner/runs/[id]/events — idempotent batched event ingestion.
  * (run_id, seq) is unique, so re-sent batches after a network blip insert
@@ -45,7 +51,7 @@ export const POST = handled(async (request: Request, { params }: Params) => {
     (e) => e.event_type === "stage_retrying" || e.event_type === "stage_started",
   );
   if (last && isRunStatus(current)) {
-    const stagePrefix = last.stage === "stage_two" ? "stage_two" : "stage_one";
+    const stagePrefix = STAGE_STATUS_PREFIX[last.stage] ?? "stage_one";
     const target =
       last.event_type === "stage_retrying"
         ? (`${stagePrefix}_retrying` as const)

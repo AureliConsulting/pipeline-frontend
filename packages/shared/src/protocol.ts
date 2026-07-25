@@ -14,6 +14,9 @@ export const PROTOCOL = {
     "stage_two_running",
     "stage_two_retrying",
     "stage_two_failed",
+    "fallback_resolver_running",
+    "fallback_resolver_retrying",
+    "fallback_resolver_failed",
     "awaiting_final_approval",
     "uploading_to_instantly",
     "completed",
@@ -32,6 +35,7 @@ export const PROTOCOL = {
   "stages": [
     "stage_one",
     "stage_two",
+    "fallback_resolver",
     "instantly_upload"
   ],
   "stage_statuses": [
@@ -80,7 +84,11 @@ export const PROTOCOL = {
     "cost_report",
     "evidence_report",
     "pipeline_log",
-    "config_snapshot"
+    "config_snapshot",
+    "ready_to_push_csv",
+    "blocked_for_review_csv",
+    "fallback_audit_csv",
+    "run_summary_json"
   ],
   "artifact_stage_map": {
     "source_csv": "stage_one",
@@ -97,7 +105,11 @@ export const PROTOCOL = {
     "cost_report": "stage_two",
     "evidence_report": "stage_two",
     "pipeline_log": "stage_two",
-    "config_snapshot": "stage_one"
+    "config_snapshot": "stage_one",
+    "ready_to_push_csv": "fallback_resolver",
+    "blocked_for_review_csv": "fallback_resolver",
+    "fallback_audit_csv": "fallback_resolver",
+    "run_summary_json": "fallback_resolver"
   },
   "approval_kinds": [
     "stage_one",
@@ -164,6 +176,7 @@ export const PROTOCOL = {
       "EXA_API_KEY",
       "DEEPSEEK_API_KEY"
     ],
+    "fallback_resolver": [],
     "instantly_upload": [
       "INSTANTLY_API_KEY"
     ]

@@ -57,6 +57,51 @@ export async function transitionRun(
   }
 }
 
+const RUNNING_STATUSES: Record<string, readonly [RunStatus, RunStatus]> = {
+  stage_one: ["stage_one_running", "stage_one_retrying"],
+  stage_two: ["stage_two_running", "stage_two_retrying"],
+  fallback_resolver: ["fallback_resolver_running", "fallback_resolver_retrying"],
+};
+
+const FAILED_STATUS: Record<string, RunStatus> = {
+  stage_one: "stage_one_failed",
+  stage_two: "stage_two_failed",
+  fallback_resolver: "fallback_resolver_failed",
+};
+
+/** Statuses a run must be in for a stage-complete report for `stage` to be
+ * accepted rather than treated as an already-acknowledged duplicate. */
+export function expectedRunningStatuses(stage: string): readonly [RunStatus, RunStatus] {
+  return RUNNING_STATUSES[stage] ?? RUNNING_STATUSES.stage_one!;
+}
+
+/** Target status when a stage reports `outcome: "failed"`. */
+export function failedStatusFor(stage: string): RunStatus {
+  return FAILED_STATUS[stage] ?? "stage_one_failed";
+}
+
+export type StageCompletionPlan =
+  | { kind: "auto_continue"; status: RunStatus; nextStage: Stage }
+  | { kind: "await_approval"; status: RunStatus; approvalKind: "stage_one" | "final" };
+
+/**
+ * What happens when a stage reports `outcome: "completed"`. stage_two never
+ * pauses for human approval — it auto-advances into the mandatory fallback
+ * resolver stage. Every other stage pauses at its corresponding approval
+ * checkpoint (stage_one -> stage_one approval, fallback_resolver -> final
+ * approval, since that's the resolver's own completion — the human's last
+ * checkpoint before an optional Instantly upload).
+ */
+export function stageCompletionPlan(stage: string): StageCompletionPlan {
+  if (stage === "stage_two") {
+    return { kind: "auto_continue", status: "queued", nextStage: "fallback_resolver" };
+  }
+  if (stage === "fallback_resolver") {
+    return { kind: "await_approval", status: "awaiting_final_approval", approvalKind: "final" };
+  }
+  return { kind: "await_approval", status: "awaiting_stage_one_approval", approvalKind: "stage_one" };
+}
+
 export function runStatusOf(run: Record<string, unknown>): RunStatus {
   const status = String(run.status ?? "");
   if (!isRunStatus(status)) throw new ApiError(500, "Run has unknown status", "internal");

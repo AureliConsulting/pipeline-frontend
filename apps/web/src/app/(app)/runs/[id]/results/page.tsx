@@ -1,7 +1,10 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PROTOCOL, type RunStatus } from "@aureli/shared";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { downloadArtifactText } from "@/lib/downloadArtifact";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { StatTile, Alert } from "@/components/ui/misc";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ArtifactList, type ArtifactRow } from "@/components/run/ArtifactList";
@@ -12,8 +15,23 @@ export const dynamic = "force-dynamic";
 const STAGE_TITLES: Record<string, string> = {
   stage_one: "Stage 1 · Sourcing & verification",
   stage_two: "Stage 2 · GTM scoring & personalization",
+  fallback_resolver: "Stage 3 · Manual review fallback resolution",
   instantly_upload: "Instantly upload",
 };
+
+interface FallbackSummary {
+  campaign_key?: string;
+  campaign_name?: string;
+  campaign_config_hash?: string;
+  input_rows?: number;
+  targeted_rows?: number;
+  remediated_rows?: number;
+  ready_rows?: number;
+  blocked_rows?: number;
+  fallback_changes?: number;
+  blocked_reason_counts?: Record<string, number>;
+  partial_mode?: boolean;
+}
 
 export default async function ResultsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -43,6 +61,23 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
     items: artifacts.filter((a) => a.stage === stage),
   }));
 
+  const readyToPush = artifacts.find((a) => a.artifact_type === "ready_to_push_csv");
+  const blockedForReview = artifacts.find((a) => a.artifact_type === "blocked_for_review_csv");
+  const runSummaryArtifact = artifacts.find((a) => a.artifact_type === "run_summary_json");
+  let fallbackSummary: FallbackSummary | null = null;
+  if (runSummaryArtifact) {
+    const text = await downloadArtifactText(run.user_id as string, runSummaryArtifact.id);
+    if (text) {
+      try {
+        fallbackSummary = JSON.parse(text) as FallbackSummary;
+      } catch {
+        fallbackSummary = null;
+      }
+    }
+  }
+  const blockedRows = fallbackSummary?.blocked_rows ?? blockedForReview?.row_count ?? 0;
+  const partialMode = fallbackSummary?.partial_mode ?? false;
+
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -68,6 +103,70 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
         <StatTile label="Artifacts" value={artifacts.length} />
       </div>
 
+      {fallbackSummary ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Fallback resolution summary</CardTitle>
+            <div className="flex gap-2">
+              <Link href={`/runs/${id}/leads`} className="text-xs text-evergreen hover:underline" data-testid="goto-leads">
+                Review leads →
+              </Link>
+              <Link href={`/runs/${id}/audit`} className="text-xs text-evergreen hover:underline" data-testid="goto-audit">
+                View audit trail →
+              </Link>
+            </div>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <div className="text-xs text-charcoal/60">
+              {fallbackSummary.campaign_name ?? fallbackSummary.campaign_key} · config{" "}
+              <code className="text-[11px]">{fallbackSummary.campaign_config_hash}</code>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+              <StatTile label="Input rows" value={fallbackSummary.input_rows ?? 0} />
+              <StatTile label="Targeted" value={fallbackSummary.targeted_rows ?? 0} />
+              <StatTile label="Remediated" value={fallbackSummary.remediated_rows ?? 0} />
+              <StatTile label="Ready" value={fallbackSummary.ready_rows ?? readyToPush?.row_count ?? 0} />
+              <StatTile label="Blocked" value={blockedRows} />
+              <StatTile label="Fallback changes" value={fallbackSummary.fallback_changes ?? 0} />
+            </div>
+            {blockedRows > 0 ? (
+              <Alert tone={partialMode ? "warning" : "danger"} data-testid="fail-closed-banner">
+                {blockedRows} lead(s) were blocked for manual review.{" "}
+                {partialMode
+                  ? "Partial mode was on — the run completed with the remaining leads ready to push."
+                  : "Partial mode was off — this is a fail-closed result, not a clean success. Export requires explicit confirmation."}
+              </Alert>
+            ) : (
+              <Alert tone="success">All leads resolved cleanly — nothing was blocked.</Alert>
+            )}
+            {fallbackSummary.blocked_reason_counts &&
+            Object.keys(fallbackSummary.blocked_reason_counts).length > 0 ? (
+              <div>
+                <div className="mb-1 text-xs font-medium uppercase tracking-wide text-charcoal/70">
+                  Blocked-reason breakdown
+                </div>
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Reason</TH>
+                      <TH>Count</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {Object.entries(fallbackSummary.blocked_reason_counts).map(([reason, count]) => (
+                      <TR key={reason}>
+                        <TD className="font-mono text-xs">{reason}</TD>
+                        <TD>{count}</TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
       {grouped.map(({ stage, items }) =>
         items.length > 0 ? (
           <Card key={stage}>
@@ -86,7 +185,8 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
         <FinalActions
           runId={id}
           campaignTitle={(run.campaigns as { title?: string })?.title ?? ""}
-          instantlyReadyCount={instantlyReady?.row_count ?? null}
+          instantlyReadyCount={fallbackSummary?.ready_rows ?? readyToPush?.row_count ?? null}
+          blockedRowsCount={blockedRows}
           uploadStatus={upload ? String(upload.status) : null}
         />
       ) : null}

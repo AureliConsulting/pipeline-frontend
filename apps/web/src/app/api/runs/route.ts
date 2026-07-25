@@ -105,6 +105,8 @@ export const POST = handled(async (request: Request) => {
     source,
     lead_count: leadCount,
     directive: {},
+    allow_partial: input.allow_partial,
+    fallback_rule_set_id: input.fallback_rule_set_id ?? campaign.fallback_rule_set_id ?? null,
   });
 
   // Pre-create stage rows for the progress UI.
@@ -112,6 +114,7 @@ export const POST = handled(async (request: Request) => {
     [
       { run_id: runId, user_id: user.id, stage: "stage_one", status: "pending" },
       { run_id: runId, user_id: user.id, stage: "stage_two", status: "pending" },
+      { run_id: runId, user_id: user.id, stage: "fallback_resolver", status: "pending" },
     ],
     { onConflict: "run_id,stage", ignoreDuplicates: true },
   );

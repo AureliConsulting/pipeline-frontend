@@ -58,11 +58,24 @@ export const saveConfigSchema = z
   })
   .strict();
 
+export const saveFallbackRuleSetSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    json_text: z.string().min(1).max(PROTOCOL.limits.max_yaml_bytes),
+  })
+  .strict();
+
 export const createRunSchema = z
   .object({
     campaign_id: z.string().uuid(),
     config_id: z.string().uuid(),
     mock: z.boolean().default(false),
+    /** Passed to the fallback resolver as --allow-partial. Blocked leads are
+     * still excluded from ready_to_push.csv either way — this only controls
+     * whether the resolver stage treats leftover blocked rows as a hard
+     * stop (exit 2 without this) or a warning-only pass-through. */
+    allow_partial: z.boolean().default(false),
+    fallback_rule_set_id: z.string().uuid().nullish(),
     source: z.discriminatedUnion("type", [
       z.object({ type: z.literal("csv"), artifact_id: z.string().uuid() }).strict(),
       z
@@ -159,6 +172,12 @@ export const stageCompleteSchema = z
         scored: z.number().int().nonnegative().nullish(),
         personalized: z.number().int().nonnegative().nullish(),
         send_ready: z.number().int().nonnegative().nullish(),
+        input_rows: z.number().int().nonnegative().nullish(),
+        targeted_rows: z.number().int().nonnegative().nullish(),
+        remediated_rows: z.number().int().nonnegative().nullish(),
+        ready_rows: z.number().int().nonnegative().nullish(),
+        blocked_rows: z.number().int().nonnegative().nullish(),
+        fallback_changes: z.number().int().nonnegative().nullish(),
       })
       .partial()
       .default({}),

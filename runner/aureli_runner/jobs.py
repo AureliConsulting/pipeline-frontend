@@ -9,6 +9,7 @@ thanks to the atomic claim RPC + claimed_by pinning).
 from __future__ import annotations
 
 import hashlib
+import json
 import platform
 import threading
 import time
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from .adapters.base import AdapterContext, PermanentAdapterError, PipelineAdapter, StageResult
+from .adapters.fallback_resolver_adapter import FallbackResolverAdapter
 from .adapters.gtm_adapter import GtmScoringPersonalizationAdapter
 from .adapters.instantly_adapter import InstantlyUploadAdapter
 from .adapters.mock_adapter import MockPipelineAdapter
@@ -106,6 +108,8 @@ class RunnerDaemon:
             return MockPipelineAdapter()
         if job.get("stage") == "stage_two":
             return GtmScoringPersonalizationAdapter(Path(self.config.gtm_dir))
+        if job.get("stage") == "fallback_resolver":
+            return FallbackResolverAdapter(Path(self.config.gtm_dir))
         return SourcingVerificationAdapter(Path(self.config.sourcing_pipeline_dir))
 
     # ------------------------------------------------------------- execution
@@ -155,7 +159,10 @@ class RunnerDaemon:
                 source=dict(job_input.get("source") or {}),
                 config_yaml=str((job_input.get("config") or {}).get("yaml_text") or ""),
                 config_json=dict((job_input.get("config") or {}).get("normalized_json") or {}),
-                directive=dict(job_input.get("directive") or job.get("directive") or {}),
+                directive={
+                    **dict(job_input.get("directive") or job.get("directive") or {}),
+                    "allow_partial": bool(job_input.get("allow_partial")),
+                },
                 credentials=credentials,
                 emit=emit,
                 cancel_event=cancel_event,
@@ -291,6 +298,11 @@ class RunnerDaemon:
         if yaml_text:
             # Preserve the original YAML byte-for-byte…
             (workspace.input_dir / "campaign_config.yaml").write_bytes(yaml_text.encode("utf-8"))
+        fallback_rules = job_input.get("fallback_rules")
+        if fallback_rules is not None:
+            (workspace.input_dir / "fallback_rules.json").write_text(
+                json.dumps(fallback_rules, ensure_ascii=False), encoding="utf-8"
+            )
 
     def _upload_artifacts(self, ctx, emitter, state: RunState, workspace: RunWorkspace, result: StageResult) -> None:
         artifacts = list(result.artifacts)
@@ -394,6 +406,13 @@ class RunnerDaemon:
 
     @staticmethod
     def _find_send_ready(workspace: RunWorkspace):
+        # ready_to_push.csv (the fallback resolver's validated delivery
+        # artifact) is authoritative when present — it's what excludes
+        # blocked leads. The stage_two send_ready file is only a fallback
+        # for runs that predate the mandatory resolver stage.
+        exact = workspace.output_dir / "ready_to_push.csv"
+        if exact.is_file():
+            return exact
         for pattern in ("*send_ready*.csv", "*instantly_ready*.csv"):
             found = sorted(workspace.output_dir.glob(pattern))
             if found:

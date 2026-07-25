@@ -81,6 +81,8 @@ class MockPipelineAdapter(PipelineAdapter):
     def start_stage(self, ctx: AdapterContext) -> StageResult:
         if ctx.stage == "stage_two":
             return self._stage_two(ctx)
+        if ctx.stage == "fallback_resolver":
+            return self._fallback_resolver(ctx)
         return self._stage_one(ctx)
 
     def _stage_one(self, ctx: AdapterContext) -> StageResult:
@@ -251,6 +253,133 @@ class MockPipelineAdapter(PipelineAdapter):
             ArtifactOut(paths["pipeline_log"], "pipeline_log", None),
         ]
         return StageResult(counts=counts, artifacts=artifacts)
+
+    # ------------------------------------------------------- fallback resolver
+    def _fallback_resolver(self, ctx: AdapterContext) -> StageResult:
+        personalized_path = ctx.workspace.output_dir / "mock_personalized_final.csv"
+        rows: list[dict[str, str]] = []
+        if personalized_path.is_file():
+            with personalized_path.open(encoding="utf-8-sig", newline="") as handle:
+                rows = list(csv.DictReader(handle))
+        if not rows:
+            rows = [dict(row) for row in FIXTURE_ROWS[:2]]
+        total = len(rows)
+        allow_partial = bool(ctx.directive.get("allow_partial"))
+        ctx.emit("stage_progress", f"[MOCK] Resolving fallbacks for {total} leads", total_items=total, current_item=0)
+
+        ready, blocked, audit = [], [], []
+        remediated = 0
+        for index, row in enumerate(rows, 1):
+            if ctx.cancelled():
+                raise RuntimeError("Stage cancelled")
+            self._sleep(ctx, 0.2)
+            email = (row.get("email") or "").strip()
+            first_name = (row.get("first name") or row.get("first_name") or "").strip()
+            fallback_applied = not first_name
+            resolved_name = first_name or (email.split("@")[0].capitalize() if email else "there")
+            if fallback_applied:
+                remediated += 1
+                audit.append(
+                    {
+                        "campaign_key": "mock_campaign",
+                        "campaign_config_hash": "sha256:mock",
+                        "row_number": str(index + 1),
+                        "email": email,
+                        "field": "first_name",
+                        "internal_field": "first_name",
+                        "output_field": "first_name",
+                        "old_value": first_name,
+                        "new_value": resolved_name,
+                        "rule_type": "email_local_part",
+                        "rule_index": "0",
+                    }
+                )
+            # Deterministically quarantine the last row so mock runs always
+            # exercise the blocked-review + partial-mode UI paths.
+            if index == total and not email:
+                blocked.append(
+                    {
+                        **row,
+                        "first_name": resolved_name,
+                        "automation_status": "BLOCKED",
+                        "fallback_applied": str(fallback_applied).lower(),
+                        "fallback_fields": "first_name" if fallback_applied else "",
+                        "validation_errors": "missing_required:email",
+                    }
+                )
+            else:
+                ready.append(
+                    {
+                        "email": email,
+                        "first_name": resolved_name,
+                        "automation_status": "READY_FALLBACK" if fallback_applied else "READY",
+                        "fallback_applied": str(fallback_applied).lower(),
+                        "fallback_fields": "first_name" if fallback_applied else "",
+                        "validation_errors": "",
+                    }
+                )
+            ctx.emit("stage_progress", f"[MOCK] Resolved {email or 'row'}", current_item=index, total_items=total)
+
+        out = ctx.workspace.safe_output_path
+        ready_path = out("ready_to_push.csv")
+        blocked_path = out("blocked_for_review.csv")
+        audit_path = out("fallback_audit.csv")
+        summary_path = out("run_summary.json")
+        self._write_csv(
+            ready_path, ready,
+            ["email", "first_name", "automation_status", "fallback_applied", "fallback_fields", "validation_errors"],
+        )
+        self._write_csv(blocked_path, blocked)
+        self._write_csv(
+            audit_path, audit,
+            ["campaign_key", "campaign_config_hash", "row_number", "email", "field", "internal_field",
+             "output_field", "old_value", "new_value", "rule_type", "rule_index"],
+        )
+        summary = {
+            "input_file": "[MOCK] mock_personalized_final.csv",
+            "input_rows": total,
+            "targeted_rows": remediated,
+            "remediated_rows": remediated,
+            "ready_rows": len(ready),
+            "blocked_rows": len(blocked),
+            "fallback_changes": len(audit),
+            "blocked_reason_counts": ({"missing_required": len(blocked)} if blocked else {}),
+            "campaign_key": "mock_campaign",
+            "campaign_name": "[MOCK] campaign",
+            "campaign_config": None,
+            "campaign_config_hash": "sha256:mock",
+            "required_variables": ["email"],
+            "optional_variables": ["first_name"],
+            "template_steps_validated": 1,
+            "instantly_variable_mapping": {"first_name": "first_name"},
+            "partial_mode": allow_partial,
+            "outputs": {
+                "ready_to_push": str(ready_path),
+                "blocked_for_review": str(blocked_path),
+                "fallback_audit": str(audit_path),
+            },
+        }
+        summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+
+        counts = {
+            "input_rows": total,
+            "targeted_rows": remediated,
+            "remediated_rows": remediated,
+            "ready_rows": len(ready),
+            "blocked_rows": len(blocked),
+            "fallback_changes": len(audit),
+        }
+        warnings = (
+            [f"[MOCK] {len(blocked)} lead(s) blocked for manual review" + ("" if allow_partial else " (partial mode was off)")]
+            if blocked else []
+        )
+        artifacts = [
+            ArtifactOut(ready_path, "ready_to_push_csv", len(ready)),
+            ArtifactOut(blocked_path, "blocked_for_review_csv", len(blocked)),
+            ArtifactOut(audit_path, "fallback_audit_csv", len(audit)),
+            ArtifactOut(summary_path, "run_summary_json", None),
+        ]
+        return StageResult(counts=counts, artifacts=artifacts, warnings=warnings)
 
     # ------------------------------------------------------------- instantly
     def instantly_upload(self, ctx: AdapterContext, lead_count: int) -> int:

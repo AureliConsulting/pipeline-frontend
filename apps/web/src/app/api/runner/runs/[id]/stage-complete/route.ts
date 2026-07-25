@@ -2,7 +2,7 @@ import { z } from "zod";
 import { stageCompleteSchema, redactSecrets } from "@aureli/shared";
 import { ApiError, handled, json, parseBody } from "@/lib/api";
 import { requireRunner, requireRunnerRun } from "@/lib/runnerAuth";
-import { runStatusOf, transitionRun } from "@/lib/runsService";
+import { runStatusOf, transitionRun, expectedRunningStatuses, failedStatusFor, stageCompletionPlan } from "@/lib/runsService";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +28,7 @@ export const POST = handled(async (request: Request, { params }: Params) => {
   const now = new Date().toISOString();
 
   // Idempotency: if the run already advanced past this stage, acknowledge.
-  const expectedRunning =
-    input.stage === "stage_two"
-      ? ["stage_two_running", "stage_two_retrying"]
-      : ["stage_one_running", "stage_one_retrying"];
+  const expectedRunning = expectedRunningStatuses(input.stage);
   if (!expectedRunning.includes(status)) {
     return json({ ok: true, deduplicated: true, status });
   }
@@ -52,7 +49,7 @@ export const POST = handled(async (request: Request, { params }: Params) => {
   }
 
   if (input.outcome === "failed") {
-    const target = input.stage === "stage_two" ? "stage_two_failed" : "stage_one_failed";
+    const target = failedStatusFor(input.stage);
     const message = redactSecrets(input.error ?? "Stage failed");
     await transitionRun(admin, id, status, target, { error: message, warnings });
     await admin
@@ -80,18 +77,25 @@ export const POST = handled(async (request: Request, { params }: Params) => {
   // showing correct totals. Leaving the last value in place is correct: it
   // reflects the stage's final progress, and the next stage's first
   // stage_progress event naturally supersedes it within moments of starting.
-  const target =
-    input.stage === "stage_two" ? "awaiting_final_approval" : "awaiting_stage_one_approval";
-  await transitionRun(admin, id, status, target, { warnings });
   await admin
     .from("run_stages")
     .update({ status: "completed", ended_at: now, counts: input.counts, error: null })
     .eq("run_id", id)
     .eq("stage", input.stage);
+
+  const plan = stageCompletionPlan(input.stage);
+  if (plan.kind === "auto_continue") {
+    // Mandatory auto-continue: the fallback resolver always runs next, with
+    // no human gate in between — never an approval_requests row here.
+    await transitionRun(admin, id, status, plan.status, { next_stage: plan.nextStage, warnings, directive: {} });
+    return json({ ok: true });
+  }
+
+  await transitionRun(admin, id, status, plan.status, { warnings });
   await admin.from("approval_requests").insert({
     run_id: id,
     user_id: runner.user_id,
-    kind: input.stage === "stage_two" ? "final" : "stage_one",
+    kind: plan.approvalKind,
     payload: { stage: input.stage, counts: input.counts },
   });
   return json({ ok: true });
