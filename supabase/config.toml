@@ -26,8 +26,12 @@ enable_refresh_token_rotation = true
 # (scripts/create-users.mjs or the Supabase dashboard).
 enable_signup = false
 
+# NOTE: [auth.email] enable_signup controls the email PROVIDER as a whole
+# (sign-in included), not just self-service signup — leave it true. Public
+# self-signup is blocked by [auth] enable_signup above; users are created
+# out-of-band via scripts/create-users.mjs (Admin API), which bypasses that.
 [auth.email]
-enable_signup = false
+enable_signup = true
 enable_confirmations = false
 
 [storage]
@@ -36,3 +40,9 @@ file_size_limit = "50MiB"
 
 [realtime]
 enabled = true
+
+[analytics]
+# Disabled: the Logflare analytics container requires the Docker daemon to be
+# exposed on tcp://localhost:2375 on Windows, which is not a default/safe
+# setup. Not needed for local development of this app.
+enabled = false

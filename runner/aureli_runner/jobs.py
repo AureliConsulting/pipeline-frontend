@@ -191,10 +191,14 @@ class RunnerDaemon:
             # Wait for the human decision, then continue (next stage /
             # Instantly / done). Browser closure is irrelevant here.
             self._await_next_step(job, workspace, state, ctx, emit, cancel_event)
-        except ApiError as exc:
-            print(f"[runner] control-plane error for run {run_id}: {exc}")
         except Exception as exc:  # noqa: BLE001 — report, never crash the daemon
+            # Any failure past this point (adapter crash, or a control-plane
+            # call such as artifact upload/registration failing after its own
+            # retries) must still try to report the stage failed, so the run
+            # reaches stage_*_failed and the user gets the retry/skip/cancel
+            # checkpoint instead of hanging in "running" forever.
             message = redact(f"{type(exc).__name__}: {exc}")
+            error_class = "permanent" if isinstance(exc, PermanentAdapterError) else "transient"
             print(f"[runner] run {run_id} crashed: {message}\n{redact(traceback.format_exc())}")
             try:
                 self.client.stage_complete(
@@ -204,12 +208,16 @@ class RunnerDaemon:
                         "outcome": "failed",
                         "counts": {},
                         "error": message,
-                        "error_class": "transient",
+                        "error_class": error_class,
                         "warnings": [],
                     },
                 )
-            except ApiError:
-                pass
+            except ApiError as report_exc:
+                # The control plane itself is unreachable/rejecting us; there
+                # is nothing more this process can do for this run right now.
+                # It will be picked up again on the next resume (crash
+                # recovery via find_incomplete_runs) or the next claim cycle.
+                print(f"[runner] could not report failure for run {run_id}: {report_exc}")
         finally:
             stop_watch.set()
             emitter.drain()

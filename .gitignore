@@ -34,3 +34,7 @@ test-results/
 # OS
 .DS_Store
 Thumbs.db
+
+# Supabase CLI local runtime state
+supabase/.branches/
+supabase/.temp/

@@ -168,7 +168,9 @@ create table public.artifacts (
   content_hash text,
   verified boolean not null default false,
   created_at timestamptz not null default now(),
-  unique (run_id, artifact_type, file_name)
+  -- Scoped per stage: the runner can register a same-named file (e.g. its
+  -- own events.jsonl pipeline_log) once per stage without colliding.
+  unique (run_id, stage, artifact_type, file_name)
 );
 create index artifacts_run_idx on public.artifacts (run_id);
 
