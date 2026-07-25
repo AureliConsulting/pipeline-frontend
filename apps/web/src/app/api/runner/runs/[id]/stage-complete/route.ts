@@ -70,9 +70,19 @@ export const POST = handled(async (request: Request, { params }: Params) => {
   }
 
   // completed
+  // NOTE: deliberately does NOT reset `progress` here. It caches the last
+  // stage_progress event (current_item/total_items/exa_query_count) purely
+  // for the Leads/Exa-queries tiles on the progress page. A run can sit in
+  // an approval-wait status for a long time, and clearing this on every
+  // stage completion (including the final one) blanked those tiles right
+  // when they're most useful — they'd fall back to 0 while the per-stage
+  // counts (which come from run_stages.counts, unaffected by this) kept
+  // showing correct totals. Leaving the last value in place is correct: it
+  // reflects the stage's final progress, and the next stage's first
+  // stage_progress event naturally supersedes it within moments of starting.
   const target =
     input.stage === "stage_two" ? "awaiting_final_approval" : "awaiting_stage_one_approval";
-  await transitionRun(admin, id, status, target, { warnings, progress: {} });
+  await transitionRun(admin, id, status, target, { warnings });
   await admin
     .from("run_stages")
     .update({ status: "completed", ended_at: now, counts: input.counts, error: null })
